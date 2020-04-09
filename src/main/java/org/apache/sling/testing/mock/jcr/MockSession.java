@@ -20,10 +20,7 @@ package org.apache.sling.testing.mock.jcr;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import javax.jcr.Credentials;
@@ -421,7 +418,44 @@ class MockSession implements Session {
 
     @Override
     public void move(final String srcAbsPath, final String destAbsPath) throws RepositoryException {
-        throw new UnsupportedOperationException();
+        if (!itemExists(srcAbsPath)) {
+            return;
+        }
+
+        if (destAbsPath.lastIndexOf("/") > 0)
+        {
+            if (!itemExists(destAbsPath.substring(0,destAbsPath.lastIndexOf("/"))))
+            {
+                throw new RepositoryException();
+            }
+        }
+
+        HashMap<String,ItemData> destItemDatas = new HashMap<>();
+        for (String itemPath : this.items.keySet()) {
+            if (itemPath.startsWith(srcAbsPath)) {
+                ItemData srcItemData = this.items.get(itemPath);
+                ItemData destItemData;
+                if (srcItemData.isNode())
+                {
+                    destItemData = ItemData.newNode((itemPath.replace(srcAbsPath,destAbsPath)),
+                            srcItemData.getNodeType());
+                    destItemData.setIsNew(true);
+                }
+                else if (srcItemData.isProperty())
+                {
+                    destItemData = ItemData.newProperty(itemPath.replace(srcAbsPath,destAbsPath));
+                    destItemData.setValues(srcItemData.getValues());
+                }
+                else
+                    throw new RepositoryException();
+                destItemDatas.put(destItemData.getPath(),destItemData);
+            }
+        }
+        this.items.putAll(destItemDatas);
+        removeItem(srcAbsPath);
+
+        hasKnownChanges = true;
+
     }
 
     @Override
